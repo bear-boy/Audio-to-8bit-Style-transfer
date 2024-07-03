@@ -1,0 +1,451 @@
+%% DRC study
+clc; clear;
+% 设置信号参数
+duration = 1; % 信号时长（秒）
+fs = 48000; % 采样率（Hz）
+
+% 生成时间轴
+t = 0:1/fs:duration-1/fs;
+
+% 生成信号
+signal_1 = ones(1, length(t(t<=0.5)));
+signal_2 = zeros(1, length(t(t>0.5)));
+input_x = [signal_1 signal_2];
+
+ratio = 3;
+knee = 2;
+threshold = -10;
+tau_attack = 0.100;
+tau_attack2 = 0.200;
+tau_release1 = 0.100;
+tau_release2 = 0.200;
+tau_release3 = 0.500;
+
+figure
+plot(t, input_x)
+
+%% Peak Detector
+% tau_attack = 0.010;
+
+alpha_attack = exp(-1 / (tau_attack*fs));
+alpha_release1 = exp(-1 / (tau_release1*fs));
+alpha_release2 = exp(-1 / (tau_release2*fs));
+alpha_release3 = exp(-1 / (tau_release3*fs));
+
+output_y1 = zeros(length(input_x), 1);
+output_y2 = zeros(length(input_x), 1);
+output_y3 = zeros(length(input_x), 1);
+
+for i = 1:length(input_x)
+    if i == 1
+        output_y1(i) = 0;
+        output_y2(i) = 0;
+        output_y3(i) = 0;
+    else
+        output_y1(i) = alpha_release1 * output_y1(i-1) + (1 - alpha_attack) * max(input_x(i) - output_y1(i-1), 0);
+        output_y2(i) = alpha_release2 * output_y2(i-1) + (1 - alpha_attack) * max(input_x(i) - output_y2(i-1), 0);
+        output_y3(i) = alpha_release3 * output_y3(i-1) + (1 - alpha_attack) * max(input_x(i) - output_y3(i-1), 0);
+    end
+end
+
+figure
+plot(t, input_x, t, output_y1, t, output_y2, t, output_y3)
+
+%% Level Corrected Peak Detectors
+% tau_attack = 0.100;
+% tau_release1 = 0.100;
+% tau_release2 = 0.200;
+% tau_release3 = 0.500;
+
+alpha_attack = exp(-1 / (tau_attack*fs));
+alpha_release1 = exp(-1 / (tau_release1*fs));
+alpha_release2 = exp(-1 / (tau_release2*fs));
+alpha_release3 = exp(-1 / (tau_release3*fs));
+
+output_y1 = zeros(length(input_x), 1);
+output_y2 = zeros(length(input_x), 1);
+output_y3 = zeros(length(input_x), 1);
+
+interm_y1 = zeros(length(input_x), 1);
+interm_y2 = zeros(length(input_x), 1);
+interm_y3 = zeros(length(input_x), 1);
+
+for i = 1:length(input_x)
+    if i == 1
+        output_y1(i) = 0;
+        output_y2(i) = 0;
+        output_y3(i) = 0;
+        interm_y1(i) = 0;
+        interm_y2(i) = 0;
+    else
+        interm_y1(i) = max(input_x(i), alpha_release1 * interm_y1(i-1));
+        interm_y2(i) = max(input_x(i), alpha_release2 * interm_y2(i-1));
+        output_y1(i) = alpha_attack * output_y1(i-1) + (1 - alpha_attack) * interm_y1(i); % decouple
+        output_y2(i) = alpha_attack * output_y2(i-1) + (1 - alpha_attack) * interm_y2(i); % decouple
+
+        if input_x(i) > output_y3(i-1)
+            output_y3(i) = alpha_attack * output_y3(i-1) + (1 - alpha_attack) * input_x(i);
+        else
+            output_y3(i) = alpha_release3 * output_y3(i-1);
+        end
+    end
+end
+
+figure
+plot(t, input_x)
+hold on
+plot(t, output_y1)
+hold on
+plot(t, output_y2)
+hold on
+plot(t, output_y3)
+
+
+%% Smooth peak detectors
+% tau_attack = 0.100;
+% tau_release1 = 0.100;
+% tau_release2 = 0.200;
+% tau_release3 = 0.500;
+
+alpha_attack = exp(-1 / (tau_attack*fs));
+alpha_release1 = exp(-1 / (tau_release1*fs));
+alpha_release2 = exp(-1 / (tau_release2*fs));
+alpha_release3 = exp(-1 / (tau_release3*fs));
+
+output_y1 = zeros(length(input_x), 1);
+output_y2 = zeros(length(input_x), 1);
+output_y3 = zeros(length(input_x), 1);
+
+interm_y1 = zeros(length(input_x), 1);
+interm_y2 = zeros(length(input_x), 1);
+interm_y3 = zeros(length(input_x), 1);
+
+for i = 1:length(input_x)
+    if i == 1
+        output_y1(i) = 0;
+        output_y2(i) = 0;
+        output_y3(i) = 0;
+        interm_y1(i) = 0;
+        interm_y2(i) = 0;
+    else
+        interm_y1(i) = max(input_x(i), alpha_release1 * interm_y1(i-1) + (1 - alpha_release1) * input_x(i));
+        interm_y2(i) = max(input_x(i), alpha_release2 * interm_y2(i-1) + (1 - alpha_release2) * input_x(i));
+        output_y1(i) = alpha_attack * output_y1(i-1) + (1 - alpha_attack) * interm_y1(i); % decouple
+        output_y2(i) = alpha_attack * output_y2(i-1) + (1 - alpha_attack) * interm_y2(i); % decouple
+
+        if input_x(i) > output_y3(i-1)
+            output_y3(i) = alpha_attack * output_y3(i-1) + (1 - alpha_attack) * input_x(i);
+        else
+            output_y3(i) = alpha_release3 * output_y3(i-1) + (1 - alpha_release3) * input_x(i);
+        end
+    end
+end
+
+figure
+plot(t, input_x)
+hold on
+plot(t, output_y1)
+hold on
+plot(t, output_y2)
+hold on
+plot(t, output_y3)
+
+
+%% Detector placement -- Method 1
+% ratio = 3;
+% knee = 2;
+% threshold = -10;
+% tau_attack = 0.100;
+% tau_release1 = 0.100;
+% tau_release2 = 0.200;
+% tau_release3 = 0.500;
+
+xl = abs(input_x);
+
+output_y1 = peak_detector(xl, fs, tau_attack, tau_release1, 0);
+output_y2 = peak_detector(xl, fs, tau_attack, tau_release2, 0);
+output_y3 = peak_detector(xl, fs, tau_attack, tau_release3, 1);
+
+
+xg1 = 20.*log10(output_y1);
+xg2 = 20.*log10(output_y2);
+xg3 = 20.*log10(output_y3);
+
+yg1 = gain_computer(xg1, threshold, knee, ratio);
+yg2 = gain_computer(xg2, threshold, knee, ratio);
+yg3 = gain_computer(xg3, threshold, knee, ratio);
+
+cdb1 = yg1 - xg1;
+cdb2 = yg2 - xg2;
+cdb3 = yg3 - xg3;
+
+figure
+plot(t, input_x)
+hold on
+plot(t, output_y1)
+hold on
+plot(t, output_y2)
+hold on
+plot(t, output_y3)
+
+% figure
+% plot(t, yg1)
+% hold on
+% plot(t, yg2)
+% hold on
+% plot(t, yg3)
+% hold on
+% plot(t, xg1)
+% hold on
+% plot(t, xg2)
+% hold on
+% plot(t, xg3)
+
+figure
+plot(t, cdb1)
+hold on
+plot(t, cdb2)
+hold on
+plot(t, cdb3)
+
+
+
+
+%% Detector placement -- Method 2
+xl = abs(input_x) - 10^(threshold/20);
+
+output_y1 = peak_detector(xl, fs, tau_attack, tau_release1, 0);
+output_y2 = peak_detector(xl, fs, tau_attack2, tau_release2, 0);
+% output_y3 = peak_detector(xl, fs, tau_attack, tau_release3, 1);
+
+
+xg1 = 20.*log10(output_y1 + 10^(threshold/20));
+xg2 = 20.*log10(output_y2 + 10^(threshold/20));
+% xg3 = 20.*log10(output_y3 + 10^(threshold/20));
+
+yg1 = gain_computer(xg1, threshold, knee, ratio);
+yg2 = gain_computer(xg2, threshold, knee, ratio);
+% yg3 = gain_computer(xg3, threshold, knee, ratio);
+
+cdb1 = yg1 - xg1;
+cdb2 = yg2 - xg2;
+% cdb3 = yg3 - xg3;
+
+figure
+plot(t, xl)
+hold on
+plot(t, output_y1)
+text(t(4800), output_y1(4800), ['(', num2str(t(4800)), ', ', num2str(output_y1(4800)), ')'], 'VerticalAlignment', 'bottom')
+hold on
+plot(t, output_y2)
+text(t(9600), output_y2(9600), ['(', num2str(t(9600)), ', ', num2str(output_y2(9600)), ')'], 'VerticalAlignment', 'bottom')
+% hold on
+% plot(t, output_y3)
+
+figure
+plot(t, cdb1)
+text(t(4800), cdb1(4800), ['(', num2str(t(4800)), ', ', num2str(cdb1(4800)), ')'], 'VerticalAlignment', 'bottom')
+hold on
+plot(t, xg1)
+text(t(4800), xg1(4800), ['(', num2str(t(4800)), ', ', num2str(xg1(4800)), ')'], 'VerticalAlignment', 'bottom')
+hold on
+plot(t, cdb2)
+text(t(9600), cdb2(9600), ['(', num2str(t(9600)), ', ', num2str(cdb2(9600)), ')'], 'VerticalAlignment', 'bottom')
+hold on
+plot(t, xg2)
+text(t(9600), xg2(9600), ['(', num2str(t(9600)), ', ', num2str(xg2(9600)), ')'], 'VerticalAlignment', 'bottom')
+% hold on
+% plot(t, cdb3)
+
+%% Detector placement -- Method 3
+xg = 20.*log10(max(abs(input_x), 1e-8));
+yg = gain_computer(xg, threshold, knee, ratio);
+xl = xg' - yg;
+
+output_y1 = peak_detector(xl, fs, tau_attack, tau_release1, 0);
+
+cdb1 = -1*output_y1;
+cl = 10.^(cdb1/20);
+
+
+figure
+plot(t, xl)
+hold on
+plot(t, output_y1)
+
+figure
+plot(t, xg)
+hold on
+plot(t, yg)
+hold on
+plot(t, xl)
+
+figure
+plot(t, cdb1)
+
+figure
+plot(t, cl)
+
+
+%% effective compression ratio
+x = [-1:.01:1].';
+N = length(x);
+T = -12;
+R = 4;
+W = 4;
+for n=1:N
+    x_dB(n, 1) = 20 * log10(abs(x(n,1)));
+    if x_dB(n, 1) < -144
+        x_dB(n, 1) = -144;
+    end
+
+    if x_dB(n,1) > (T + W/2) % Above knee curve 
+        g_sc(n,1) = T + ((x_dB(n,1) - T)/R); 
+    elseif x_dB(n,1) > (T - W/2) % Within knee curve 
+        g_sc(n,1) = x_dB(n,1) + ... 
+            ((1/R - 1) * (x_dB(n,1) - T + W/2)^2)/(2 * W); 
+    else % Do not compress 
+        g_sc(n,1) = x_dB(n,1); 
+    end
+end
+
+plot(x_dB,g_sc); % Compressor characteristic curve 
+xlabel('Input Amplitude (dBFS)'); ylabel('Output Amplitude (dBFS)');
+
+%% step response
+fs = 48000; ts = 1/fs;
+x = [zeros(fs,1) ; ones(fs,1)]; 
+N = length(x);
+q = 0;
+for n = 1:N
+    temp_sum = 0;
+    for m = 0:n
+        temp_sum = temp_sum + (alpha_attack + alpha_release1 - 1)^m;
+    end
+    y(n, 1) = (1 - alpha_attack) * temp_sum;
+end
+
+t = [0:N-1]*ts;
+plot(t,x,t,y);
+
+%% DRC Test
+clc; clear;
+[x, fs] = audioread("01_dukou_ORI.wav");
+makeupgain = 6;
+threshold = -15;
+ratio = 7;
+knee = 5;
+attack = 0.015; % 15 ms
+release = 0.1;
+% tag=0: decouple mode, tag=1: branch mode
+tag = 0;
+y = drc_process(x, fs, makeupgain, threshold, ratio, knee, attack, release, tag);
+
+audiowrite("01_dukou_DRC.wav", y, fs, "BitsPerSample",32);
+
+
+
+%% DRC Realize
+function output = drc_process(input, fs, makeupgain, threshold, ratio, knee, attack, release, tag)
+    xg = 20 .* log10(max(abs(input), 1e-5));
+    yg = gain_computer(xg, threshold, knee, ratio);
+    xl = xg - yg;
+    y1 = peak_detector(xl, fs, attack, release, tag);
+    cdb1 = -1 * y1;
+    cg = cdb1 + makeupgain;
+    cl = 10.^(cg/20);
+    output_drc = input .* cl;
+    output = limiter(output_drc, 0.9866);
+%     dRL = limiter(-1);
+%     output = dRL(output_drc);
+
+%     figure
+%     plot(input)
+%     hold on
+%     plot(output_drc)
+%     hold on
+%     plot(output)
+end
+
+%% Limiter
+function y = limiter(x, lt)
+at = 0.7;
+rt = 0.1;
+delay = 5;
+
+xpeak = 0;
+g = 1;
+gain = zeros(length(x), 1);
+flist = zeros(length(x), 1);
+buffer = zeros(1,delay);
+
+for n = 1:length(x)
+  a = abs(x(n));
+  if a > xpeak
+    coeff = at;
+  else
+    coeff = rt;
+  end
+  xpeak = (1-coeff) * xpeak + coeff * a;
+  f = min(1, lt/xpeak);
+  flist(n) = f;
+  if f < g
+    coeff = at;
+  else
+    coeff = rt;
+  end
+  g = (1-coeff) * g + coeff * f;
+  gain(n) = g;
+  y(n) = g * buffer(end);
+  buffer = [x(n) buffer(1:end-1)];
+end
+  figure
+  plot(flist)
+  figure
+  plot(gain)
+end
+
+%% decouple detector
+function yl = peak_detector(x, fs, attack, release, tag)
+    alpha_attack = exp(-1 / (attack*fs));
+    alpha_release = exp(-1 / (release*fs));
+    yl_decouple = zeros(length(x), 1);
+    yl_branch = zeros(length(x), 1);
+    interm_y1 = zeros(length(x), 1);
+    
+    for i = 1:length(x)
+        if i == 1
+            yl_decouple(i) = 0;
+            yl_branch(i) = 0;
+            interm_y1(i) = 0;
+        else
+            interm_y1(i) = max(x(i), alpha_release * interm_y1(i-1) + (1 - alpha_release) * x(i));
+            yl_decouple(i) = alpha_attack * yl_decouple(i-1) + (1 - alpha_attack) * interm_y1(i); % decouple
+    
+            if x(i) > yl_branch(i-1)
+                yl_branch(i) = alpha_attack * yl_branch(i-1) + (1 - alpha_attack) * x(i);
+            else
+                yl_branch(i) = alpha_release * yl_branch(i-1) + (1 - alpha_release) * x(i);
+            end
+        end
+    end
+    if tag == 0
+        yl = yl_decouple;
+    else
+        yl = yl_branch;
+    end
+end
+
+%% gain computer
+function yg = gain_computer(xg, threshold, knee, ratio)
+    yg = zeros(length(xg), 1);
+    for i = 1:length(xg)
+        if 2*(xg(i) - threshold) < -1*knee
+            yg(i) = xg(i);
+        elseif 2*abs(xg(i) - threshold) <= knee
+            yg(i) = xg(i) + (1/ratio - 1) * (xg(i) - threshold + knee/2)^2 / (2 * knee);
+        elseif 2*(xg(i) - threshold) > knee
+            yg(i) = threshold + (xg(i) - threshold) / ratio;
+        end
+    end
+end
